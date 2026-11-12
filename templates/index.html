@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartCampus IoT — Prototipo Funcional MVP (Unidad 3 TI3043)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans p-4 md:p-6">
+  <header class="max-w-7xl mx-auto mb-6 bg-slate-800 border border-slate-700 rounded-xl p-4 flex flex-wrap justify-between items-center shadow-lg">
+    <div>
+      <span class="bg-sky-600 text-xs font-bold px-2.5 py-1 rounded uppercase tracking-wider">Prototipo Funcional MVP — TI3043</span>
+      <h1 class="text-xl md:text-2xl font-bold mt-1 text-white">SmartCampus IoT: Control de Acceso Peatonal (TOTP/NFC) y Vehicular (LPR/OCR)</h1>
+      <p class="text-xs text-slate-400">Integrantes: Joaquín Elgueta – Howens Castro Sierra | Docente: Manuel Esteban Rojas Villarroel | Sede INACAP Maipú</p>
+    </div>
+    <div class="flex gap-2 mt-3 md:mt-0">
+      <span class="bg-emerald-900/60 border border-emerald-500 text-emerald-300 text-xs px-3 py-1.5 rounded-lg font-semibold">TLS 1.3 Activo</span>
+      <span class="bg-blue-900/60 border border-blue-500 text-blue-300 text-xs px-3 py-1.5 rounded-lg font-semibold">OWASP Top 10 Protegido</span>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <!-- Vista 1: App Móvil Estudiante (SaaS) -->
+    <section class="lg:col-span-4 bg-slate-800 border border-slate-700 rounded-2xl p-5 flex flex-col items-center shadow-xl">
+      <div class="w-full bg-sky-700 rounded-xl p-3 text-center mb-4">
+        <h2 class="font-bold text-white text-base">App Móvil: SmartCampus — Mi Pase</h2>
+        <p class="text-xs text-sky-200">Credencial Dinámica Estudiantil (RFC 6238)</p>
+      </div>
+
+      <div class="w-full bg-slate-900/80 border border-slate-700 rounded-xl p-3 mb-4 text-center">
+        <p class="font-bold text-white text-sm" id="studentName">Joaquín Elgueta</p>
+        <p class="text-xs text-slate-400" id="studentRut">RUT: 19.876.543-0 | Ing. Informática</p>
+        <span class="inline-block mt-1.5 bg-emerald-900/80 border border-emerald-500 text-emerald-300 text-[11px] font-bold px-2.5 py-0.5 rounded">ESTADO: MATRÍCULA VIGENTE</span>
+      </div>
+
+      <div class="bg-white p-4 rounded-xl border-4 border-sky-500 shadow-md mb-3">
+        <canvas id="qrCanvas" width="150" height="150"></canvas>
+      </div>
+
+      <p class="text-sm font-mono font-bold text-amber-400 mb-1">Token TOTP: <span id="totpCode" class="text-white text-lg">849 201</span></p>
+      <p class="text-xs text-rose-400 font-semibold mb-2">Renovación automática en: <span id="timerSec">30</span>s</p>
+      <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden mb-4">
+        <div id="timerBar" class="bg-sky-500 h-full transition-all duration-500" style="width: 100%;"></div>
+      </div>
+
+      <div class="w-full grid grid-cols-1 gap-2">
+        <button onclick="simularPasoPeatonal(false)" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition shadow">
+          Simular Escaneo QR / NFC Válido en Torniquete
+        </button>
+        <button onclick="simularPasoPeatonal(true)" class="w-full bg-amber-700 hover:bg-amber-600 text-white font-semibold py-2 px-4 rounded-xl text-xs transition">
+          Probar Captura de Pantalla QR Vencida (&gt;30s) [CP-03]
+        </button>
+      </div>
+    </section>
+
+    <!-- Vista 2: Panel Web Guardia de Seguridad y Control LPR -->
+    <section class="lg:col-span-8 bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+      <div>
+        <div class="flex flex-wrap justify-between items-center border-b border-slate-700 pb-3 mb-4">
+          <div>
+            <h2 class="font-bold text-white text-lg">Panel Web de Seguridad y Control LPR (Dashboard Guardia)</h2>
+            <p class="text-xs text-slate-400">Nodo Edge Gateway: INACAP Sede Maipú | Operador: H. Castro (ADMIN)</p>
+          </div>
+          <span id="systemStatusBadge" class="bg-emerald-900/70 border border-emerald-500 text-emerald-300 text-xs font-bold px-3 py-1 rounded-full">
+            PÓRTICOS OPERATIVOS (ONLINE)
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <!-- Simulador Cámara LPR -->
+          <div class="bg-slate-900 border border-slate-700 rounded-xl p-4">
+            <h3 class="text-xs font-bold text-sky-400 uppercase mb-2">[CAM-01] Pórtico Vehicular LPR (Stream RTSP 720p)</h3>
+            <div class="bg-slate-950 border-2 border-dashed border-emerald-500/70 rounded-lg h-32 flex flex-col items-center justify-center mb-3">
+              <span class="text-[11px] text-emerald-400 font-mono mb-1">ROI DETECTADO — CONFIANZA OCR: <span id="ocrConf">98.4%</span></span>
+              <div id="plateDisplay" class="bg-yellow-300 text-slate-950 font-mono font-extrabold text-xl px-5 py-1.5 rounded border-2 border-yellow-600 shadow">
+                AB · CD · 12
+              </div>
+              <span id="lprLatency" class="text-[11px] text-slate-400 mt-1">Latencia Edge: 1.18 s (RNF-01 &lt; 1.5s)</span>
+            </div>
+
+            <label class="block text-xs text-slate-300 mb-1">Probar lectura OCR o vector de ataque (CP-04 / CP-05):</label>
+            <div class="flex gap-2 mb-2">
+              <input id="plateInput" type="text" value="AB-CD-12" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white w-full font-mono" />
+              <button onclick="procesarPatenteManual()" class="bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg shrink-0">
+                Validar LPR
+              </button>
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+              <button onclick="setPlateAndRun('AB-CD-12')" class="bg-slate-700 hover:bg-slate-600 text-[11px] px-2 py-1 rounded">Placa Autorizada (AB-CD-12)</button>
+              <button onclick="setPlateAndRun('XX-YY-99')" class="bg-slate-700 hover:bg-slate-600 text-[11px] px-2 py-1 rounded">Placa No Reg. (XX-YY-99)</button>
+              <button onclick="setPlateAndRun(&quot;AB12' OR '1'='1&quot;)" class="bg-rose-900/80 hover:bg-rose-800 text-rose-200 text-[11px] px-2 py-1 rounded">Ataque SQLi [CP-05]</button>
+            </div>
+          </div>
+
+          <!-- Bitácora en Tiempo Real -->
+          <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 flex flex-col">
+            <h3 class="text-xs font-bold text-sky-400 uppercase mb-2">Bitácora de Accesos y Alertas OWASP (Tiempo Real)</h3>
+            <div id="accessLogList" class="space-y-2 overflow-y-auto max-h-52 pr-1 text-xs font-mono"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Métricas de Aforo y Botonera de Emergencia -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-700">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl p-3">
+          <p class="text-xs font-bold text-slate-200 mb-1">Aforo Peatonal Sede: <span id="aforoCount">452</span> / 800 (56.5%)</p>
+          <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden mb-2">
+            <div id="aforoBar" class="bg-sky-500 h-full" style="width: 56.5%;"></div>
+          </div>
+          <p class="text-xs font-bold text-slate-200 mb-1">Estacionamientos Ocupados: <span id="parkingCount">38</span> / 50 (<span id="parkingFree">12</span> Libres)</p>
+          <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+            <div id="parkingBar" class="bg-emerald-500 h-full" style="width: 76%;"></div>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2 justify-center">
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="simularAtaqueRBAC()" class="bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-2 px-3 rounded-xl text-xs transition">
+              Probar Bloqueo RBAC 403 [CP-06]
+            </button>
+            <button onclick="exportarNominaCSV()" class="bg-purple-700 hover:bg-purple-600 text-white font-bold py-2 px-3 rounded-xl text-xs transition">
+              Exportar Nómina (RF-04)
+            </button>
+          </div>
+          <button onclick="activarEmergencia()" class="w-full bg-rose-700 hover:bg-rose-600 border border-rose-400 text-white font-extrabold py-2.5 px-4 rounded-xl text-xs transition shadow-lg">
+            [!] APERTURA MANUAL DE EMERGENCIA (LIBERAR TORNIQUETES Y BARRERAS)
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let timeLeft = 30;
+    let aforo = 452;
+    let parkingOcupados = 38;
+    const padronPatentes = {
+      "ABCD12": { nombre: "Joaquín Elgueta", rut: "***.543-0", rol: "ESTUDIANTE" },
+      "EFGH34": { nombre: "Howens Castro Sierra", rut: "***.892-0", rol: "ADMIN" },
+      "JKLM56": { nombre: "Manuel Rojas V.", rut: "***.222-6", rol: "DOCENTE" }
+    };
+
+    const eventosBitacora = [
+      { hora: "08:14:22", tipo: "PEATONAL QR", detalle: "***.543-0 (J. Elgueta)", estado: "AUTORIZADO", color: "emerald" },
+      { hora: "08:13:50", tipo: "VEHICULAR LPR", detalle: "Placa AB-CD-12 (98.4%)", estado: "AUTORIZADO", color: "emerald" },
+      { hora: "08:10:15", tipo: "VEHICULAR LPR", detalle: "Placa XX-YY-99 (No Reg.)", estado: "RECHAZADO", color: "rose" }
+    ];
+
+    function dibujarQR(seed) {
+      const canvas = document.getElementById("qrCanvas");
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, 150, 150);
+      ctx.fillStyle = "#0f172a";
+      const size = 13;
+      const cell = 150 / size;
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          const isFinder = (r < 4 && c < 4) || (r < 4 && c > 8) || (r > 8 && c < 4);
+          const bit = isFinder ? ((r === 0 || r === 3 || c === 0 || c === 3 || (r >= 1 && r <= 2 && c >= 1 && c <= 2)) ? 1 : 0) : ((seed * (r + 3) * (c + 7)) % 3 === 0 ? 1 : 0);
+          if (bit) ctx.fillRect(c * cell + 1, r * cell + 1, cell - 2, cell - 2);
+        }
+      }
+    }
+
+    function regenerarTOTP() {
+      const num = Math.floor(100000 + Math.random() * 900000);
+      const str = String(num);
+      document.getElementById("totpCode").innerText = str.slice(0, 3) + " " + str.slice(3);
+      dibujarQR(num);
+    }
+
+    function renderBitacora() {
+      const cont = document.getElementById("accessLogList");
+      cont.innerHTML = eventosBitacora.map(ev => {
+        const badgeClass = ev.color === "emerald"
+          ? "bg-emerald-900/80 text-emerald-300 border-emerald-500"
+          : (ev.color === "amber" ? "bg-amber-900/80 text-amber-300 border-amber-500" : "bg-rose-900/80 text-rose-300 border-rose-500");
+        return `<div class="bg-slate-800 border border-slate-700 rounded-lg p-2 flex justify-between items-center">
+          <div>
+            <p class="font-bold text-slate-200">${ev.hora} | ${ev.tipo}</p>
+            <p class="text-slate-400 text-[11px]">${ev.detalle}</p>
+          </div>
+          <span class="border text-[10px] font-bold px-2 py-0.5 rounded ${badgeClass}">${ev.estado}</span>
+        </div>`;
+      }).join("");
+    }
+
+    function horaActual() {
+      return new Date().toTimeString().split(" ")[0];
+    }
+
+    function simularPasoPeatonal(vencido) {
+      if (vencido) {
+        eventosBitacora.unshift({
+          hora: horaActual(),
+          tipo: "PEATONAL QR [CP-03]",
+          detalle: "Token QR Expirado (>30s) — HTTP 401",
+          estado: "BLOQUEADO",
+          color: "amber"
+        });
+      } else {
+        aforo++;
+        document.getElementById("aforoCount").innerText = aforo;
+        eventosBitacora.unshift({
+          hora: horaActual(),
+          tipo: "PEATONAL QR/NFC",
+          detalle: "***.543-0 (J. Elgueta) — 190 ms",
+          estado: "AUTORIZADO",
+          color: "emerald"
+        });
+      }
+      renderBitacora();
+    }
+
+    function setPlateAndRun(val) {
+      document.getElementById("plateInput").value = val;
+      procesarPatenteManual();
+    }
+
+    function procesarPatenteManual() {
+      const raw = document.getElementById("plateInput").value.trim().toUpperCase();
+      document.getElementById("plateDisplay").innerText = raw;
+
+      if (raw.includes("'") || raw.includes("OR ") || raw.includes("DROP") || raw.includes("--")) {
+        eventosBitacora.unshift({
+          hora: horaActual(),
+          tipo: "ALERTA OWASP A03 [CP-05]",
+          detalle: `Payload SQLi neutralizado por RegEx/ORM: ${raw}`,
+          estado: "BLOQUEADO 400",
+          color: "rose"
+        });
+        renderBitacora();
+        return;
+      }
+
+      const limpia = raw.replace(/[^A-Z0-9]/g, "");
+      if (!/^[A-Z]{2,4}[0-9]{2,4}$/.test(limpia)) {
+        eventosBitacora.unshift({
+          hora: horaActual(),
+          tipo: "VEHICULAR LPR",
+          detalle: `Formato inválido (${raw}) — HTTP 400`,
+          estado: "RECHAZADO",
+          color: "rose"
+        });
+        renderBitacora();
+        return;
+      }
+
+      if (padronPatentes[limpia]) {
+        if (parkingOcupados < 50) parkingOcupados++;
+        document.getElementById("parkingCount").innerText = parkingOcupados;
+        document.getElementById("parkingFree").innerText = 50 - parkingOcupados;
+        eventosBitacora.unshift({
+          hora: horaActual(),
+          tipo: "VEHICULAR LPR [CP-04]",
+          detalle: `Placa ${limpia} (${padronPatentes[limpia].nombre}) — 1.18s`,
+          estado: "AUTORIZADO",
+          color: "emerald"
+        });
+      } else {
+        eventosBitacora.unshift({
+          hora: horaActual(),
+          tipo: "VEHICULAR LPR",
+          detalle: `Placa ${limpia} no registrada en padrón`,
+          estado: "RECHAZADO",
+          color: "rose"
+        });
+      }
+      renderBitacora();
+    }
+
+    function simularAtaqueRBAC() {
+      eventosBitacora.unshift({
+        hora: horaActual(),
+        tipo: "OWASP A01 RBAC [CP-06]",
+        detalle: "Rol ESTUDIANTE intentó exportar nómina -> HTTP 403",
+        estado: "DENEGADO 403",
+        color: "rose"
+      });
+      renderBitacora();
+    }
+
+    function activarEmergencia() {
+      const badge = document.getElementById("systemStatusBadge");
+      badge.className = "bg-rose-900 border border-rose-400 text-rose-200 text-xs font-bold px-3 py-1 rounded-full animate-pulse";
+      badge.innerText = "MODO EVACUACIÓN: BARRERAS LIBERADAS";
+      eventosBitacora.unshift({
+        hora: horaActual(),
+        tipo: "EMERGENCIA FÍSICA (RF-05)",
+        detalle: "Apertura general accionada por H. Castro (Fail-Safe)",
+        estado: "LIBERADO",
+        color: "amber"
+      });
+      renderBitacora();
+    }
+
+    function exportarNominaCSV() {
+      const rows = [["Hora", "Tipo_Acceso", "Detalle_Enmascarado", "Resultado"]];
+      eventosBitacora.forEach(e => rows.push([e.hora, e.tipo, e.detalle, e.estado]));
+      const csvContent = "data:text/csv;charset=utf-8," + rows.map(r => r.join(",")).join("\n");
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI(csvContent));
+      link.setAttribute("download", "Nomina_Accesos_SmartCampus_IoT.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    setInterval(() => {
+      timeLeft--;
+      if (timeLeft <= 0) {
+        timeLeft = 30;
+        regenerarTOTP();
+      }
+      document.getElementById("timerSec").innerText = timeLeft;
+      document.getElementById("timerBar").style.width = ((timeLeft / 30) * 100) + "%";
+    }, 1000);
+
+    regenerarTOTP();
+    renderBitacora();
+  </script>
+</body>
+</html>
